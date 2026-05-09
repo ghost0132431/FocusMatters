@@ -178,19 +178,57 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  const updateAnalysisContent = (key) => {
-    const data = analysisData[key];
-    if (!data) return;
+  // Preload all analysis images once the browser is idle so first-hover swaps
+  // don't pay the network/decode cost.
+  const preloadAnalysis = () => {
+    Object.values(analysisData).forEach(d => {
+      const im = new Image();
+      im.src = d.image;
+    });
+  };
+  (window.requestIdleCallback || ((cb) => setTimeout(cb, 0)))(preloadAnalysis);
+
+  const ANALYSIS_FADE_MS = 300;
+  let analysisToken = 0;
+
+  const swapContent = (data) => {
     document.getElementById('methodBadge').textContent = data.badge;
     document.getElementById('methodTitle').textContent = data.title;
     const fig = document.getElementById('methodFigure');
-    fig.innerHTML = `<img src="${data.image}" alt="${data.imageAlt}" loading="lazy" class="analysis-image" />`;
+    let imgEl = fig.querySelector('img.analysis-image');
+    if (!imgEl) {
+      imgEl = document.createElement('img');
+      imgEl.className = 'analysis-image';
+      fig.innerHTML = '';
+      fig.appendChild(imgEl);
+    }
+    imgEl.src = data.image;
+    imgEl.alt = data.imageAlt;
     const copyBlock = document.getElementById('methodCopyBlock');
     copyBlock.innerHTML = data.html;
-    // Re-typeset MathJax only when content contains LaTeX delimiters
     if (window.MathJax && window.MathJax.typesetPromise && /\\\(/.test(data.html)) {
       window.MathJax.typesetPromise([copyBlock]);
     }
+  };
+
+  const updateAnalysisContent = async (key) => {
+    const data = analysisData[key];
+    if (!data) return;
+    const myToken = ++analysisToken;
+
+    contentWrapper.classList.remove('fade-in');
+
+    const tmp = new Image();
+    tmp.src = data.image;
+    await Promise.all([
+      tmp.decode().catch(() => {}),
+      new Promise(r => setTimeout(r, ANALYSIS_FADE_MS))
+    ]);
+
+    if (myToken !== analysisToken) return;
+
+    swapContent(data);
+    requestAnimationFrame(() => contentWrapper.classList.add('fade-in'));
   };
 
   methodButtons.forEach(btn => {
@@ -198,12 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (btn.classList.contains('active')) return;
       methodButtons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      const key = btn.getAttribute('data-method');
-      contentWrapper.classList.remove('fade-in');
-      setTimeout(() => {
-        updateAnalysisContent(key);
-        contentWrapper.classList.add('fade-in');
-      }, 300);
+      updateAnalysisContent(btn.getAttribute('data-method'));
     });
   });
 });
