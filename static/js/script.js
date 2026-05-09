@@ -243,6 +243,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  const preloadAll = () => {
+    Object.values(imageMap).forEach(byModel => {
+      Object.values(byModel).forEach(src => {
+        const im = new Image();
+        im.src = src;
+      });
+    });
+  };
+  (window.requestIdleCallback || ((cb) => setTimeout(cb, 0)))(preloadAll);
+
   const benchPicker = document.getElementById('qualPickerBench');
   const modelPicker = document.getElementById('qualPickerModel');
   const img = document.getElementById('qualImage');
@@ -279,15 +289,29 @@ document.addEventListener('DOMContentLoaded', () => {
     return m ? m.label : key;
   }
 
-  function updateImage() {
+  const FADE_MS = 250;
+  let updateToken = 0;
+
+  async function updateImage() {
     const src = imageMap[currentBench] && imageMap[currentBench][currentModel];
     if (!src) return;
+    if (img.src && img.src.endsWith(src)) return;
+
+    const myToken = ++updateToken;
     img.classList.add('fade-out');
-    setTimeout(() => {
-      img.src = src;
-      img.alt = `${getModelLabel(currentModel)} qualitative result on ${getBenchLabel(currentBench)}`;
-      img.classList.remove('fade-out');
-    }, 250);
+
+    const tmp = new Image();
+    tmp.src = src;
+    await Promise.all([
+      tmp.decode().catch(() => {}),
+      new Promise(r => setTimeout(r, FADE_MS))
+    ]);
+
+    if (myToken !== updateToken) return;
+
+    img.src = src;
+    img.alt = `${getModelLabel(currentModel)} qualitative result on ${getBenchLabel(currentBench)}`;
+    requestAnimationFrame(() => img.classList.remove('fade-out'));
   }
 
   buildPicker(benchPicker, benchmarks, currentBench);

@@ -852,7 +852,7 @@ body.sidebar-collapsed .sidebar { transform: translateX(-280px); }
   display: block;
   border-radius: 16px;
   box-shadow: 0 10px 30px rgba(15,23,42,0.15);
-  transition: opacity 0.4s ease;
+  transition: opacity 0.25s ease;
 }
 .qual-image.fade-out {
   opacity: 0;
